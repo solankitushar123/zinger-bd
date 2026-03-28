@@ -13,7 +13,7 @@ const { initSocket } = require('./socket/socketManager');
 const errorHandler = require('./middleware/errorHandler');
 const notFound = require('./middleware/notFound');
 
-// Route imports
+// Routes
 const authRoutes     = require('./routes/auth.routes');
 const productRoutes  = require('./routes/product.routes');
 const categoryRoutes = require('./routes/category.routes');
@@ -30,112 +30,149 @@ const bannerRoutes   = require('./routes/banner.routes');
 const deliveryRoutes = require('./routes/delivery.routes');
 const addressRoutes  = require('./routes/address.routes');
 
-const app    = express();
+const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO
+// Socket
 const io = initSocket(server);
 app.set('io', io);
 
-// Connect to MongoDB
+// DB
 connectDB();
 
-// ── Security ────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────
+// 🔐 SECURITY
+// ─────────────────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false,
 }));
 
+
+// ✅ FIXED CORS (IMPORTANT)
+const allowedOrigins = [
+  process.env.CLIENT_URL, // your Vercel URL
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+];
+
 app.use(cors({
-  origin: [
-    process.env.CLIENT_URL ||  'https://your-frontend-url.vercel.app','http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-  ],
+  origin: function (origin, callback) {
+    // allow requests without origin (postman, mobile apps)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('CORS not allowed'), false);
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
 }));
 
-// ── Rate limiting ────────────────────────────────────────────────────────────
-// General API — generous limit for a grocery app with many page calls
+
+// ─────────────────────────────────────────────────────
+// 🚦 RATE LIMIT
+// ─────────────────────────────────────────────────────
 const generalLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,   // 1 minute window
-  limit: 300,                  // 300 req/min per IP (5 req/sec — plenty)
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: (req) => req.method === 'OPTIONS',
-  message: { success: false, message: 'Too many requests. Please slow down.' },
+  windowMs: 1 * 60 * 1000,
+  limit: 300,
 });
 
-// Auth endpoints — strict
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { success: false, message: 'Too many login attempts. Try again in 15 minutes.' },
 });
 
-// Read-only public endpoints — very permissive (products, categories, banners)
 const publicReadLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   limit: 500,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
 });
 
 app.use('/api', generalLimiter);
 
-// ── Logging ──────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────
+// 🧾 LOGGING
+// ─────────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// ── Stripe webhook (needs raw body — mount BEFORE express.json) ──────────────
+
+// ─────────────────────────────────────────────────────
+// 💳 STRIPE WEBHOOK
+// ─────────────────────────────────────────────────────
 app.post(
   '/api/payments/stripe/webhook',
   express.raw({ type: 'application/json' }),
   require('./controllers/payment.controller').stripeWebhook
 );
 
-// ── Body parsing ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────
+// 📦 BODY PARSER
+// ─────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// ── Health check ─────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
+
+// ─────────────────────────────────────────────────────
+// ❤️ HEALTH CHECK
+// ─────────────────────────────────────────────────────
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    time: new Date(),
+  });
 });
 
-// ── API Routes ───────────────────────────────────────────────────────────────
-app.use('/api/auth',       authLimiter, authRoutes);
-app.use('/api/products',   publicReadLimiter, productRoutes);
+
+// ─────────────────────────────────────────────────────
+// 🚀 API ROUTES
+// ─────────────────────────────────────────────────────
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/products', publicReadLimiter, productRoutes);
 app.use('/api/categories', publicReadLimiter, categoryRoutes);
-app.use('/api/banners',    publicReadLimiter, bannerRoutes);
-app.use('/api/cart',       cartRoutes);
-app.use('/api/orders',     orderRoutes);
-app.use('/api/users',      userRoutes);
-app.use('/api/admin',      adminRoutes);
-app.use('/api/coupons',    couponRoutes);
-app.use('/api/reviews',    reviewRoutes);
-app.use('/api/payments',   paymentRoutes);
-app.use('/api/upload',     uploadRoutes);
-app.use('/api/ai',         aiRoutes);
-app.use('/api/delivery',   deliveryRoutes);
-app.use('/api/addresses',  addressRoutes);
-// ── Root endpoint ───────────────────────────────────────────────────────────
+app.use('/api/banners', publicReadLimiter, bannerRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/addresses', addressRoutes);
 
+
+// ─────────────────────────────────────────────────────
+// 🌐 ROOT ROUTE (IMPORTANT)
+// ─────────────────────────────────────────────────────
 app.get('/', (req, res) => {
-  res.json({ success: true, message: 'ZINGER API is live!' });
+  res.json({
+    success: true,
+    message: 'ZINGER API is LIVE 🚀',
+  });
 });
 
-// ── Error handling ───────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────
+// ❌ ERROR HANDLING (ALWAYS LAST)
+// ─────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 ZINGER API running on :${PORT} [${process.env.NODE_ENV || 'development'}]`);
-});
 
-module.exports = { app, server };
+// ─────────────────────────────────────────────────────
+// 🟢 SERVER START
+// ─────────────────────────────────────────────────────
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
