@@ -31,6 +31,10 @@ const deliveryRoutes = require('./routes/delivery.routes');
 const addressRoutes  = require('./routes/address.routes');
 
 const app = express();
+
+// ✅ VERY IMPORTANT (fix Render proxy issue)
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 
 // Socket
@@ -50,26 +54,29 @@ app.use(helmet({
 }));
 
 
-// ✅ FIXED CORS (IMPORTANT)
+// ─────────────────────────────────────────────────────
+// 🌐 CORS (PRODUCTION READY)
+// ─────────────────────────────────────────────────────
 const allowedOrigins = [
-  process.env.CLIENT_URL, // your Vercel URL
+  process.env.CLIENT_URL, // your Vercel frontend
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
-];
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // allow requests without origin (postman, mobile apps)
-    if (!origin) return callback(null, true);
+    if (!origin) return callback(null, true); // allow Postman/mobile
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
-    } else {
-      return callback(new Error('CORS not allowed'), false);
     }
+
+    console.log('❌ Blocked by CORS:', origin);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
 }));
 
 
@@ -77,7 +84,7 @@ app.use(cors({
 // 🚦 RATE LIMIT
 // ─────────────────────────────────────────────────────
 const generalLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
+  windowMs: 60 * 1000,
   limit: 300,
 });
 
@@ -87,7 +94,7 @@ const authLimiter = rateLimit({
 });
 
 const publicReadLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
+  windowMs: 60 * 1000,
   limit: 500,
 });
 
@@ -151,7 +158,7 @@ app.use('/api/addresses', addressRoutes);
 
 
 // ─────────────────────────────────────────────────────
-// 🌐 ROOT ROUTE (IMPORTANT)
+// 🌐 ROOT ROUTE
 // ─────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({
@@ -162,7 +169,7 @@ app.get('/', (req, res) => {
 
 
 // ─────────────────────────────────────────────────────
-// ❌ ERROR HANDLING (ALWAYS LAST)
+// ❌ ERROR HANDLING
 // ─────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
