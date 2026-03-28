@@ -54,7 +54,13 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 
-
+app.use(cors({
+  origin: [
+    "https://zinger-ui1.vercel.app",
+    "https://zinger-ui1-6dkx2xmog-tejasvi-solankis-projects.vercel.app"
+  ],
+  credentials: true
+}));
 // ─────────────────────────────────────────────────────
 // 🌐 CORS (PRODUCTION READY)
 // ─────────────────────────────────────────────────────
