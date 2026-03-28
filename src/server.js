@@ -31,6 +31,7 @@ const deliveryRoutes = require('./routes/delivery.routes');
 const addressRoutes  = require('./routes/address.routes');
 
 const app = express();
+app.use(cors());
 
 // ✅ VERY IMPORTANT (fix Render proxy issue)
 app.set('trust proxy', 1);
