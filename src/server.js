@@ -123,6 +123,11 @@ app.use('/api/upload',     uploadRoutes);
 app.use('/api/ai',         aiRoutes);
 app.use('/api/delivery',   deliveryRoutes);
 app.use('/api/addresses',  addressRoutes);
+// ── Root endpoint ───────────────────────────────────────────────────────────
+
+app.get('/', (req, res) => {
+  res.json({ success: true, message: 'ZINGER API is live!' });
+});
 
 // ── Error handling ───────────────────────────────────────────────────────────
 app.use(notFound);
