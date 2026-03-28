@@ -31,65 +31,62 @@ const deliveryRoutes = require('./routes/delivery.routes');
 const addressRoutes  = require('./routes/address.routes');
 
 const app = express();
-app.use(cors());
 
-// ✅ VERY IMPORTANT (fix Render proxy issue)
+// trust proxy (Render fix)
 app.set('trust proxy', 1);
 
 const server = http.createServer(app);
 
-// Socket
+// socket
 const io = initSocket(server);
 app.set('io', io);
 
-// DB
+// connect DB
 connectDB();
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 🔐 SECURITY
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false,
 }));
 
-app.use(cors({
-  origin: [
-    "https://zinger-ui1.vercel.app",
-    "https://zinger-ui1-6dkx2xmog-tejasvi-solankis-projects.vercel.app"
-  ],
-  credentials: true
-}));
-// ─────────────────────────────────────────────────────
-// 🌐 CORS (PRODUCTION READY)
-// ─────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────
+// 🌐 CORS (FIXED)
+// ─────────────────────────────────────────
 const allowedOrigins = [
-  process.env.CLIENT_URL, // your Vercel frontend
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
+  process.env.CLIENT_URL,
+  "https://zinger-ui1.vercel.app",
+  "https://zinger-ui1-6dkx2xmog-tejasvi-solankis-projects.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000"
 ].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow Postman/mobile
+
+    // allow server-to-server requests or postman
+    if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    console.log('❌ Blocked by CORS:', origin);
-    return callback(new Error('Not allowed by CORS'));
+    console.log("❌ Blocked by CORS:", origin);
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  methods: ["GET","POST","PUT","DELETE","PATCH","OPTIONS"]
 }));
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 🚦 RATE LIMIT
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 300,
@@ -108,17 +105,17 @@ const publicReadLimiter = rateLimit({
 app.use('/api', generalLimiter);
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 🧾 LOGGING
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 💳 STRIPE WEBHOOK
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.post(
   '/api/payments/stripe/webhook',
   express.raw({ type: 'application/json' }),
@@ -126,16 +123,16 @@ app.post(
 );
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 📦 BODY PARSER
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // ❤️ HEALTH CHECK
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -144,9 +141,9 @@ app.get('/health', (req, res) => {
 });
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 🚀 API ROUTES
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/products', publicReadLimiter, productRoutes);
 app.use('/api/categories', publicReadLimiter, categoryRoutes);
@@ -164,9 +161,9 @@ app.use('/api/delivery', deliveryRoutes);
 app.use('/api/addresses', addressRoutes);
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 🌐 ROOT ROUTE
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({
     success: true,
@@ -175,16 +172,16 @@ app.get('/', (req, res) => {
 });
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // ❌ ERROR HANDLING
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
 
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 // 🟢 SERVER START
-// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
